@@ -1,0 +1,33 @@
+plugins {
+    id 'java'
+}
+
+group = 'org.cihan'
+version = '1.0-SNAPSHOT'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    testImplementation platform('org.junit:junit-bom:5.10.0')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+
+    implementation("org.postgresql:postgresql:42.7.7")
+    implementation("org.eclipse.jetty.websocket:websocket-jetty-server:11.0.26")
+    implementation("com.fasterxml.jackson.core:jackson-databind:2.21.4")
+    implementation("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.21.4")
+    implementation("org.slf4j:slf4j-api:2.0.18")
+    implementation("ch.qos.logback:logback-classic:1.5.33")
+}
+
+test {
+    useJUnitPlatform()
+}

@@ -1,0 +1,28 @@
+# Build output
+build/
+.gradle/
+out/
+bin/
+*.class
+
+# Gradle wrapper jar must stay tracked so ./gradlew works without a local Gradle install
+!gradle/wrapper/gradle-wrapper.jar
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+.apt_generated
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs — not part of the shipped source
+*.md

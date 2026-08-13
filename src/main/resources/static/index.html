@@ -1,0 +1,432 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>wal-meow — Live Database Watcher</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:   #fcfcfb;
+    --page:        #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --gridline:    #e1e0d9;
+    --border:      rgba(11,11,11,0.10);
+    --card-hover:  #f3f2ee;
+
+    --good:     #0ca30c;
+    --warning:  #fab219;
+    --critical: #d03b3b;
+    --good-bg:     rgba(12,163,12,0.12);
+    --warning-bg:  rgba(250,178,25,0.16);
+    --critical-bg: rgba(208,59,59,0.12);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1:   #1a1a19;
+      --page:        #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --gridline:    #2c2c2a;
+      --border:      rgba(255,255,255,0.10);
+      --card-hover:  #232322;
+
+      --good-bg:     rgba(12,163,12,0.20);
+      --warning-bg:  rgba(250,178,25,0.22);
+      --critical-bg: rgba(208,59,59,0.20);
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  body { min-height: 100vh; }
+
+  .wrap {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 20px 16px 64px;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+    font-weight: 700;
+  }
+  header .subtitle {
+    font-size: 13px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--text-secondary);
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    padding: 6px 12px;
+    border-radius: 999px;
+  }
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex: none;
+  }
+  .status-pill[data-state="connected"] .status-dot { background: var(--good); }
+  .status-pill[data-state="disconnected"] .status-dot { background: var(--critical); }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+    margin-bottom: 16px;
+  }
+  .stat-tile {
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+  .stat-tile .n {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .stat-tile .l {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+  .stat-tile.insert .n { color: var(--good); }
+  .stat-tile.update .n { color: var(--warning); }
+  .stat-tile.delete .n { color: var(--critical); }
+
+  .filters {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    border: 1px solid var(--border);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    font-size: 13px;
+    padding: 6px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .chip.active {
+    color: var(--text-primary);
+    border-color: var(--text-primary);
+    font-weight: 600;
+  }
+
+  .feed { display: flex; flex-direction: column; gap: 8px; }
+
+  .empty {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 48px 16px;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    font-size: 14px;
+  }
+
+  .card {
+    display: flex;
+    gap: 12px;
+    background: var(--surface-1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    cursor: pointer;
+    animation: card-in .25s ease-out;
+  }
+  @keyframes card-in {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card:hover { background: var(--card-hover); }
+
+  .badge {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+  }
+  .badge.insert { background: var(--good-bg); color: var(--good); }
+  .badge.update { background: var(--warning-bg); color: var(--warning); }
+  .badge.delete { background: var(--critical-bg); color: var(--critical); }
+
+  .card-body { flex: 1; min-width: 0; }
+  .card-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .card-title {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+  .card-title b { font-weight: 700; }
+  .card-time {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .card-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .op-label.insert { color: var(--good); font-weight: 600; }
+  .op-label.update { color: var(--warning); font-weight: 600; }
+  .op-label.delete { color: var(--critical); font-weight: 600; }
+
+  .details {
+    display: none;
+    margin-top: 10px;
+    border-top: 1px solid var(--gridline);
+    padding-top: 10px;
+  }
+  .details.open { display: block; }
+  .kv-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+  }
+  .kv-table th {
+    text-align: left;
+    color: var(--text-muted);
+    font-weight: 600;
+    padding: 4px 8px 4px 0;
+    border-bottom: 1px solid var(--gridline);
+  }
+  .kv-table td {
+    padding: 5px 8px 5px 0;
+    border-bottom: 1px solid var(--gridline);
+    vertical-align: top;
+    word-break: break-word;
+  }
+  .kv-table tr:last-child td { border-bottom: none; }
+  .kv-col-name { color: var(--text-secondary); white-space: nowrap; }
+  .kv-changed { background: var(--warning-bg); border-radius: 4px; }
+  .kv-null { color: var(--text-muted); font-style: italic; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>wal-meow</h1>
+      <div class="subtitle">Watch database changes live</div>
+    </div>
+    <span class="status-pill" id="status-pill" data-state="connecting">
+      <span class="status-dot"></span>
+      <span id="status-text">Connecting…</span>
+    </span>
+  </header>
+
+  <div class="stats">
+    <div class="stat-tile"><div class="n" id="stat-total">0</div><div class="l">Total events</div></div>
+    <div class="stat-tile insert"><div class="n" id="stat-insert">0</div><div class="l">Inserted</div></div>
+    <div class="stat-tile update"><div class="n" id="stat-update">0</div><div class="l">Updated</div></div>
+    <div class="stat-tile delete"><div class="n" id="stat-delete">0</div><div class="l">Deleted</div></div>
+  </div>
+
+  <div class="filters" id="filters">
+    <span class="chip active" data-filter="all">All</span>
+    <span class="chip" data-filter="insert">➕ Inserts</span>
+    <span class="chip" data-filter="update">✏️ Updates</span>
+    <span class="chip" data-filter="delete">🗑️ Deletes</span>
+  </div>
+
+  <div class="feed" id="feed"></div>
+  <div class="empty" id="empty">No events yet. As soon as a row is inserted, updated, or deleted in the database, it will show up here instantly.</div>
+</div>
+
+<script>
+(function () {
+  const OP_META = {
+    INSERT: { cls: 'insert', icon: '➕', label: 'inserted', verb: 'a new row was inserted' },
+    UPDATE: { cls: 'update', icon: '✏️', label: 'updated',  verb: 'a row was updated' },
+    DELETE: { cls: 'delete', icon: '🗑️', label: 'deleted',  verb: 'a row was deleted' },
+  };
+  const MAX_CARDS = 200;
+
+  const feedEl = document.getElementById('feed');
+  const emptyEl = document.getElementById('empty');
+  const statusPill = document.getElementById('status-pill');
+  const statusText = document.getElementById('status-text');
+  const statTotal = document.getElementById('stat-total');
+  const statInsert = document.getElementById('stat-insert');
+  const statUpdate = document.getElementById('stat-update');
+  const statDelete = document.getElementById('stat-delete');
+
+  const counts = { INSERT: 0, UPDATE: 0, DELETE: 0 };
+  let activeFilter = 'all';
+
+  document.getElementById('filters').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    activeFilter = chip.dataset.filter;
+    document.querySelectorAll('.card').forEach(card => {
+      card.style.display = (activeFilter === 'all' || card.dataset.op === activeFilter) ? '' : 'none';
+    });
+  });
+
+  function relativeTime(iso) {
+    const diffMs = Date.now() - new Date(iso).getTime();
+    const s = Math.max(0, Math.round(diffMs / 1000));
+    if (s < 5) return 'just now';
+    if (s < 60) return s + 's ago';
+    const m = Math.round(s / 60);
+    if (m < 60) return m + 'm ago';
+    const h = Math.round(m / 60);
+    if (h < 24) return h + 'h ago';
+    return new Date(iso).toLocaleString('en-US');
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function fieldValue(v) {
+    if (v === null || v === undefined) return '<span class="kv-null">NULL</span>';
+    return escapeHtml(v);
+  }
+
+  function buildDetailsTable(event) {
+    const meta = OP_META[event.operation];
+    if (meta.cls === 'update') {
+      const oldData = event.oldData || {};
+      const newData = event.column || {};
+      const keys = Array.from(new Set([...Object.keys(oldData), ...Object.keys(newData)]));
+      if (keys.length === 0) return '<div class="card-sub">No details available for this row (may depend on the REPLICA IDENTITY setting).</div>';
+      let rows = keys.map(k => {
+        const before = oldData[k], after = newData[k];
+        const changed = JSON.stringify(before) !== JSON.stringify(after);
+        return `<tr><td class="kv-col-name">${fieldValue(k)}</td>
+                    <td>${fieldValue(before)}</td>
+                    <td class="${changed ? 'kv-changed' : ''}">${fieldValue(after)}</td></tr>`;
+      }).join('');
+      return `<table class="kv-table"><thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead><tbody>${rows}</tbody></table>`;
+    }
+    const data = event.column || event.oldData || {};
+    const keys = Object.keys(data);
+    if (keys.length === 0) return '<div class="card-sub">No details available for this row.</div>';
+    let rows = keys.map(k => `<tr><td class="kv-col-name">${fieldValue(k)}</td><td>${fieldValue(data[k])}</td></tr>`).join('');
+    return `<table class="kv-table"><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }
+
+  function addEvent(event) {
+    const meta = OP_META[event.operation];
+    if (!meta) return; // technical events like BEGIN / COMMIT are not shown in the panel
+
+    counts[event.operation]++;
+    statInsert.textContent = counts.INSERT;
+    statUpdate.textContent = counts.UPDATE;
+    statDelete.textContent = counts.DELETE;
+    statTotal.textContent = counts.INSERT + counts.UPDATE + counts.DELETE;
+
+    emptyEl.style.display = 'none';
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.op = meta.cls;
+    card.dataset.ts = event.timestamp;
+    if (activeFilter !== 'all' && activeFilter !== meta.cls) card.style.display = 'none';
+
+    const table = escapeHtml((event.schema && event.table) ? `${event.schema}.${event.table}` : (event.table || 'unknown table'));
+
+    card.innerHTML = `
+      <div class="badge ${meta.cls}">${meta.icon}</div>
+      <div class="card-body">
+        <div class="card-top">
+          <div class="card-title"><b>${table}</b> was <span class="op-label ${meta.cls}">${meta.label}</span></div>
+          <div class="card-time">${relativeTime(event.timestamp)}</div>
+        </div>
+        <div class="card-sub">${meta.verb}${event.transactionId != null ? ' · transaction #' + event.transactionId : ''}</div>
+        <div class="details">${buildDetailsTable(event)}</div>
+      </div>`;
+
+    card.addEventListener('click', () => {
+      card.querySelector('.details').classList.toggle('open');
+    });
+
+    feedEl.prepend(card);
+    while (feedEl.children.length > MAX_CARDS) {
+      feedEl.removeChild(feedEl.lastChild);
+    }
+  }
+
+  setInterval(() => {
+    document.querySelectorAll('.card').forEach(card => {
+      const timeEl = card.querySelector('.card-time');
+      if (timeEl) timeEl.textContent = relativeTime(card.dataset.ts);
+    });
+  }, 1000);
+
+  function setStatus(state, text) {
+    statusPill.dataset.state = state;
+    statusText.textContent = text;
+  }
+
+  function connect() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(proto + '://' + location.host + '/ws');
+
+    ws.onopen = () => setStatus('connected', 'Connected — watching live');
+    ws.onclose = () => {
+      setStatus('disconnected', 'Disconnected, retrying…');
+      setTimeout(connect, 2000);
+    };
+    ws.onerror = () => ws.close();
+    ws.onmessage = (msg) => {
+      try {
+        addEvent(JSON.parse(msg.data));
+      } catch (e) {
+        console.error('Failed to parse event', e, msg.data);
+      }
+    };
+  }
+
+  connect();
+})();
+</script>
+</body>
+</html>
