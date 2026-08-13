@@ -24,5 +24,6 @@ bin/
 .DS_Store
 Thumbs.db
 
-# Docs — not part of the shipped source
+# Docs — not part of the shipped source (README is the one exception)
 *.md
+!README.md
